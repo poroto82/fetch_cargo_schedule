@@ -6,13 +6,15 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.support.ui import WebDriverWait
 from pyvirtualdisplay import Display
 from prettytable import PrettyTable
+from webdriver_manager.chrome import ChromeDriverManager
+
 import sys
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 base_url = 'https://icargo.schedules.qwyk.io/'
 
-def initialize_selenium_driver():
+def initialize_selenium_driver(use_webdriver_manager=False):
     """Initialize the Selenium WebDriver."""
     logging.info("Initializing Selenium WebDriver.")
     options = webdriver.ChromeOptions()
@@ -20,7 +22,11 @@ def initialize_selenium_driver():
     options.add_argument("--disable-dev-shm-usage")
     
     try:
-        driver = webdriver.Chrome(service=ChromeService(executable_path='/usr/local/bin/chromedriver-linux64/chromedriver'), options=options)
+        if use_webdriver_manager:
+            driver = webdriver.Chrome(service=ChromeService(executable_path=ChromeDriverManager().install()), options=options)
+        else:
+            driver = webdriver.Chrome(service=ChromeService(executable_path='/usr/local/bin/chromedriver-linux64/chromedriver'), options=options)
+
     except WebDriverException as e:
         logging.error(f"Error initializing Selenium WebDriver: {e}")
         raise
@@ -107,18 +113,21 @@ def display_schedules(schedules):
     print(table)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        logging.error("Usage: python fetch_schedules.py <origin_locode> <destination_locode>")
+    if len(sys.argv) < 3:
+        logging.error("Usage: python fetch_schedules.py <origin_locode> <destination_locode> [--use-webdriver-manager]")
         sys.exit(1)
 
     origin_locode = sys.argv[1]
     destination_locode = sys.argv[2]
 
+    #web driver manager as option
+    use_webdriver_manager = "--use-webdriver-manager" in sys.argv
+
     try:
         display = Display(visible=0, size=(1920, 1080))
         display.start()
 
-        driver = initialize_selenium_driver()
+        driver = initialize_selenium_driver(use_webdriver_manager=use_webdriver_manager)
         token = get_bearer_token(driver)
 
         if not check_locode_exist(token, origin_locode, "origin"):
