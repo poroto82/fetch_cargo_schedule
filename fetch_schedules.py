@@ -49,6 +49,26 @@ def get_bearer_token(driver):
         raise Exception("Token not found in window.PAT")
     return f"Bearer {token}"
 
+def check_locode_exist(token, locode, way):
+    """Check if a locode exists."""
+    url = f"{base_url}api/schedules/c/2/csl/locations/{way}/{locode}"
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        if not response.json():
+            raise Exception(f"Locode {locode} does not exist")
+        
+        return True
+    except requests.RequestException as e:
+        logging.error(f"An error occurred while checking locode: {e}")
+        return False
+
 def fetch_schedules(token, origin_locode, destination_locode):
     """Fetch schedules from the API."""
     url = f"{base_url}api/schedules/c/2/csl/{origin_locode}/{destination_locode}"
@@ -100,6 +120,15 @@ if __name__ == "__main__":
 
         driver = initialize_selenium_driver()
         token = get_bearer_token(driver)
+
+        if not check_locode_exist(token, origin_locode, "origin"):
+            logging.error("Invalid origin_locode")
+            sys.exit(1)
+
+        if not check_locode_exist(token, destination_locode, "destination"):
+            logging.error("Invalid origin_locode")
+            sys.exit(1)
+
         schedules = fetch_schedules(token, origin_locode, destination_locode)
         if schedules:
             display_schedules(schedules)
