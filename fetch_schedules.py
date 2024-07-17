@@ -70,6 +70,9 @@ def check_locode_exist(token, locode, way):
         if not response.json():
             raise Exception(f"Locode {locode} does not exist")
         
+        if len(response.json()) > 1:
+            raise Exception(f"Multiple locodes found for {locode}")
+        
         return True
     except requests.RequestException as e:
         logging.error(f"An error occurred while checking locode: {e}")
