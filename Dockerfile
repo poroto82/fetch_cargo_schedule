@@ -33,7 +33,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # move script
 COPY fetch_schedules.py /usr/src/app/
-COPY .env /usr/src/app/
 
 WORKDIR /usr/src/app
 
