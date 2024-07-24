@@ -17,7 +17,9 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 base_url = 'https://icargo.schedules.qwyk.io/'
-proxies = os.getenv('PROXIES').split(',')
+proxies = ''
+if os.getenv('PROXIES'):
+    proxies = os.getenv('PROXIES').split(',')
 
 def get_random_proxy():
     """Return a random proxy from list."""
