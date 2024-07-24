@@ -28,10 +28,12 @@ ENV DISPLAY=:99
 
 # Python dependencies
 COPY requirements.txt .
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 # move script
 COPY fetch_schedules.py /usr/src/app/
+COPY .env /usr/src/app/
 
 WORKDIR /usr/src/app
 

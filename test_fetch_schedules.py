@@ -8,9 +8,10 @@ class TestFetchSchedules(unittest.TestCase):
     @patch('fetch_schedules.ChromeService')
     @patch('fetch_schedules.ChromeDriverManager')
     def test_initialize_selenium_driver(self, mock_chrome_driver_manager, mock_chrome_service, mock_chrome):
-        driver = initialize_selenium_driver()
+        mock_chrome_driver_manager().install.return_value = '/path/to/chromedriver'
+        driver = initialize_selenium_driver(use_webdriver_manager=True)
         mock_chrome_driver_manager().install.assert_called_once()
-        mock_chrome_service.assert_called_once()
+        mock_chrome_service.assert_called_once_with(executable_path='/path/to/chromedriver')
         mock_chrome.assert_called_once()
 
     @patch('fetch_schedules.WebDriverWait')

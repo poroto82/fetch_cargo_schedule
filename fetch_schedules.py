@@ -1,4 +1,5 @@
 import logging
+import random
 import requests
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException, WebDriverException
@@ -7,19 +8,29 @@ from selenium.webdriver.support.ui import WebDriverWait
 from pyvirtualdisplay import Display
 from prettytable import PrettyTable
 from webdriver_manager.chrome import ChromeDriverManager
-
+from dotenv import load_dotenv
+import os
 import sys
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 base_url = 'https://icargo.schedules.qwyk.io/'
+proxies = os.getenv('PROXIES').split(',')
 
-def initialize_selenium_driver(use_webdriver_manager=False):
+def get_random_proxy():
+    """Return a random proxy from list."""
+    return random.choice(proxies)
+
+def initialize_selenium_driver(use_webdriver_manager=False, proxy=None):
     """Initialize the Selenium WebDriver."""
     logging.info("Initializing Selenium WebDriver.")
     options = webdriver.ChromeOptions()
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    if proxy:
+        options.add_argument(f'--proxy-server={proxy}')
     
     try:
         if use_webdriver_manager:
@@ -28,8 +39,7 @@ def initialize_selenium_driver(use_webdriver_manager=False):
             driver = webdriver.Chrome(service=ChromeService(executable_path='/usr/local/bin/chromedriver-linux64/chromedriver'), options=options)
 
     except WebDriverException as e:
-        logging.error(f"Error initializing Selenium WebDriver: {e}")
-        raise
+        raise Exception(f"Error initializing Selenium WebDriver: {e}")
     
     return driver
 
@@ -44,18 +54,17 @@ def get_bearer_token(driver):
         token = driver.execute_script("return window.PAT;")
         logging.info("Bearer token retrieved successfully.")
     except TimeoutException:
-        logging.error("Timeout while waiting for window.PAT to be defined.")
-        raise
+        raise Exception("Timeout while waiting for window.PAT to be defined.")
     except WebDriverException as e:
-        logging.error(f"Error while loading the page or retrieving the token: {e}")
-        raise
+        raise Exception(f"Error while loading the page or retrieving the token: {e}")
+    except Exception as e:
+        raise Exception((f"Error General: {e}"))
 
     if token is None:
-        logging.error("Token not found in window.PAT.")
         raise Exception("Token not found in window.PAT")
     return f"Bearer {token}"
 
-def check_locode_exist(token, locode, way):
+def check_locode_exist(token, locode, way, proxy=None):
     """Check if a locode exists."""
     url = f"{base_url}api/schedules/c/2/csl/locations/{way}/{locode}"
     headers = {
@@ -64,7 +73,7 @@ def check_locode_exist(token, locode, way):
     }
 
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, proxies={"http": proxy, "https": proxy} if proxy else None)
         response.raise_for_status()
         
         if not response.json():
@@ -78,7 +87,7 @@ def check_locode_exist(token, locode, way):
         logging.error(f"An error occurred while checking locode: {e}")
         return False
 
-def fetch_schedules(token, origin_locode, destination_locode):
+def fetch_schedules(token, origin_locode, destination_locode, proxy=None):
     """Fetch schedules from the API."""
     url = f"{base_url}api/schedules/c/2/csl/{origin_locode}/{destination_locode}"
     logging.info(f"Fetching schedules from URL: {url}")
@@ -89,12 +98,11 @@ def fetch_schedules(token, origin_locode, destination_locode):
     }
 
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers,  proxies={"http": proxy, "https": proxy} if proxy else None)
         response.raise_for_status()
         data = response.json()
     except requests.RequestException as e:
-        logging.error(f"An error occurred while fetching schedules: {e}")
-        raise
+        raise(f"An error occurred while fetching schedules: {e}")
 
     schedules = []
     for schedule in data:
@@ -125,29 +133,34 @@ if __name__ == "__main__":
 
     #web driver manager as option
     use_webdriver_manager = "--use-webdriver-manager" in sys.argv
+    
+    use_proxy = "--use-proxy" in sys.argv
 
     try:
         display = Display(visible=0, size=(1920, 1080))
         display.start()
 
-        driver = initialize_selenium_driver(use_webdriver_manager=use_webdriver_manager)
+        proxy = get_random_proxy() if use_proxy else None
+        logging.info(f"Using Proxy {proxy}")
+
+        driver = initialize_selenium_driver(use_webdriver_manager=use_webdriver_manager, proxy=proxy)
         token = get_bearer_token(driver)
 
-        if not check_locode_exist(token, origin_locode, "origin"):
+        if not check_locode_exist(token, origin_locode, "origin", proxy=proxy):
             logging.error("Invalid origin_locode")
             sys.exit(1)
 
-        if not check_locode_exist(token, destination_locode, "destination"):
+        if not check_locode_exist(token, destination_locode, "destination", proxy=proxy):
             logging.error("Invalid origin_locode")
             sys.exit(1)
 
-        schedules = fetch_schedules(token, origin_locode, destination_locode)
+        schedules = fetch_schedules(token, origin_locode, destination_locode, proxy=proxy)
         if schedules:
             display_schedules(schedules)
         else:
             logging.info("No schedules found.")
     except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}")
+        logging.error(f"{e}")
     finally:
         driver.quit()
         display.stop()

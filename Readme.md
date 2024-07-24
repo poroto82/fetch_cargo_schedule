@@ -55,6 +55,16 @@ docker build -t shipping-schedules-fetcher .
 docker run --rm shipping-schedules-fetcher <origin_locode> <destination_locode>
 ```
 
+## Extras
+I added the possibility of using proxies
+
+```sh
+docker build -t shipping-schedules-fetcher .
+docker run -e PROXIES=proxy1,proxy2 shipping-schedules-fetcher  <origin_locode> <destination_locode> --use-proxy
+```
+
+using env variables you can pass a comma separated list of proxies which the app will take a random of it  and use on the requests.
+
 
 
 
