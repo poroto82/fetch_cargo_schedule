@@ -11,21 +11,23 @@ from webdriver_manager.chrome import ChromeDriverManager
 from dotenv import load_dotenv
 import os
 import sys
+from typing import Any, Dict, List, Optional, Tuple
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 base_url = 'https://icargo.schedules.qwyk.io/'
-proxies = ''
+
+proxies: List[str] = []
 if os.getenv('PROXIES'):
     proxies = os.getenv('PROXIES').split(',')
 
-def get_random_proxy():
-    """Return a random proxy from list."""
-    return random.choice(proxies)
+def get_random_proxy() -> Optional[str]:
+    """Return a random proxy from the list."""
+    return random.choice(proxies) if proxies else None
 
-def initialize_selenium_driver(use_webdriver_manager=False, proxy=None):
+def initialize_selenium_driver(use_webdriver_manager: bool = False, proxy: Optional[str] = None) -> webdriver.Chrome:
     """Initialize the Selenium WebDriver."""
     logging.info("Initializing Selenium WebDriver.")
     options = webdriver.ChromeOptions()
@@ -45,7 +47,7 @@ def initialize_selenium_driver(use_webdriver_manager=False, proxy=None):
     
     return driver
 
-def get_bearer_token(driver):
+def get_auth_header(driver)-> str:
     """Retrieve bearer token using Selenium WebDriver."""
     driver.get(base_url)
     try:
@@ -66,7 +68,7 @@ def get_bearer_token(driver):
         raise Exception("Token not found in window.PAT")
     return f"Bearer {token}"
 
-def check_locode_exist(token, locode, way, proxy=None):
+def check_locode_exist(token: str, locode: str, way: str, proxy: Optional[str] = None) -> bool:
     """Check if a locode exists."""
     url = f"{base_url}api/schedules/c/2/csl/locations/{way}/{locode}"
     headers = {
@@ -89,7 +91,16 @@ def check_locode_exist(token, locode, way, proxy=None):
         logging.error(f"An error occurred while checking locode: {e}")
         return False
 
-def fetch_schedules(token, origin_locode, destination_locode, proxy=None):
+def map_schedule_data(schedule: Dict[str, Any]) -> Tuple[str, str, str, str, str]:
+    """Map the schedule data to a tuple format."""
+    carrier = schedule.get('carrier', {}).get('display_name', 'Sin datos')
+    voyage = schedule.get('voyage', 'Sin datos')
+    etd = schedule.get('etd', 'Sin datos')
+    eta = schedule.get('eta', 'Sin datos')
+    service = schedule.get('service', 'Sin datos')
+    return (carrier, voyage, etd, eta, service)
+
+def fetch_schedules(token: str, origin_locode: str, destination_locode: str, proxy: Optional[str] = None) -> List[Tuple[str, str, str, str, str]]:
     """Fetch schedules from the API."""
     url = f"{base_url}api/schedules/c/2/csl/{origin_locode}/{destination_locode}"
     logging.info(f"Fetching schedules from URL: {url}")
@@ -100,24 +111,18 @@ def fetch_schedules(token, origin_locode, destination_locode, proxy=None):
     }
 
     try:
-        response = requests.get(url, headers=headers,  proxies={"http": proxy, "https": proxy} if proxy else None)
+        response = requests.get(url, headers=headers, proxies={"http": proxy, "https": proxy} if proxy else None)
         response.raise_for_status()
         data = response.json()
     except requests.RequestException as e:
-        raise(f"An error occurred while fetching schedules: {e}")
+        raise Exception(f"An error occurred while fetching schedules: {e}")
 
-    schedules = []
-    for schedule in data:
-        carrier = schedule['carrier']['display_name']
-        voyage = schedule['voyage']
-        etd = schedule['etd']
-        eta = schedule['eta']
-        service = schedule['service']
-        schedules.append((carrier, voyage, etd, eta, service))
+    # Use the mapper function to transform the data
+    schedules = [map_schedule_data(schedule) for schedule in data]
 
     return schedules
 
-def display_schedules(schedules):
+def display_schedules(schedules: List[Tuple[str, str, str, str, str]]) -> None:
     """Display schedules in a table format."""
     table = PrettyTable()
     table.field_names = ["Carrier", "Voyage", "ETD", "ETA", "Service"]
@@ -143,10 +148,11 @@ if __name__ == "__main__":
         display.start()
 
         proxy = get_random_proxy() if use_proxy else None
-        logging.info(f"Using Proxy {proxy}")
+        if (use_proxy):
+            logging.info(f"Using Proxy {proxy}")
 
         driver = initialize_selenium_driver(use_webdriver_manager=use_webdriver_manager, proxy=proxy)
-        token = get_bearer_token(driver)
+        token = get_auth_header(driver)
 
         if not check_locode_exist(token, origin_locode, "origin", proxy=proxy):
             logging.error("Invalid origin_locode")
